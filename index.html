@@ -187,19 +187,23 @@ body {
   <div id="supplierSettings"></div>
   <div class="export-btn" onclick="addSupplier()" style="margin-top:6px">+ Add Supplier</div>
 
-  <div class="section-label" style="margin-top:16px">Quoted crew-hours per supplier per day</div>
-  <div id="quoteSettings"></div>
+  <div class="section-label" style="margin-top:16px">Areas / Stages</div>
+  <div id="stageSettings"></div>
+  <div class="export-btn" onclick="addStage()" style="margin-top:6px">+ Add Area</div>
 
-  <div class="section-label" style="margin-top:16px">Hourly rate ($/hr)</div>
-  <div class="setting-row">
-    <label>Default rate</label>
-    <input type="number" id="rateDefault" value="85" onchange="saveSetup()">
-  </div>
+  <div class="section-label" style="margin-top:16px">Supplier budgets (total $ quoted)</div>
+  <div id="quoteSettings"></div>
 
   <div class="section-label" style="margin-top:16px">Day length (hours)</div>
   <div class="setting-row">
     <label>Assumed work day</label>
     <input type="number" id="dayLength" value="10" onchange="saveSetup()">
+  </div>
+
+  <div class="section-label" style="margin-top:16px">Default hourly rate ($/hr)</div>
+  <div class="setting-row">
+    <label>For crew-hour costing</label>
+    <input type="number" id="rateDefault" value="85" onchange="saveSetup()">
   </div>
 
   <div class="section-label" style="margin-top:24px">Sync</div>
@@ -292,6 +296,12 @@ var store = {
 function getSuppliers() {
   var s = store.setup();
   return s.suppliers || DEFAULT_SUPPLIERS;
+}
+
+var DEFAULT_STAGES = STAGES;
+function getStages() {
+  var s = store.setup();
+  return s.stages || DEFAULT_STAGES;
 }
 
 // ── INIT ──
@@ -476,7 +486,8 @@ function renderSupplierBtns() {
 }
 
 function renderStageBtns() {
-  document.getElementById('stageGrid').innerHTML = STAGES.map(function(s) {
+  var stages = getStages();
+  document.getElementById('stageGrid').innerHTML = stages.map(function(s) {
     return '<div class="btn sm" data-id="' + s.id + '" onclick="pick(\'stage\',\'' + s.id + '\')">' + s.name + '</div>';
   }).join('');
 }
@@ -592,7 +603,7 @@ function submit() {
     supplier: sel.supplier,
     supplierName: (suppliers.find(function(s) { return s.id === sel.supplier; }) || {}).name || sel.supplier,
     stage: sel.stage,
-    stageName: (STAGES.find(function(s) { return s.id === sel.stage; }) || {}).name || sel.stage,
+    stageName: (getStages().find(function(s) { return s.id === sel.stage; }) || {}).name || sel.stage,
     crew: sel.crew,
     plant: plantData,
     notes: document.getElementById('notes').value,
@@ -730,15 +741,15 @@ function renderTally() {
       return plantTotals[k] + 'x ' + ((PLANT_TYPES.find(function(p) { return p.id === k; }) || {}).label || k);
     }).join(', ') || '-';
 
+    var estCost = estHrs * rate;
+
     todayHTML += '<div class="tally-card">' +
       '<h3>' + s.name + '</h3>' +
       '<div class="tally-row"><span class="label">Checks</span><span class="value">' + sl.length + '</span></div>' +
       '<div class="tally-row"><span class="label">Max crew</span><span class="value">' + maxCrew + '</span></div>' +
       '<div class="tally-row"><span class="label">Avg crew</span><span class="value">' + avgCrew + '</span></div>' +
-      '<div class="tally-row"><span class="label">Est hrs (avg x ' + dayLen + 'h)</span><span class="value">' + estHrs.toFixed(0) + 'h</span></div>' +
-      (quoted ? '<div class="tally-row"><span class="label">Quoted</span><span class="value">' + quoted + 'h</span></div>' +
-      '<div class="tally-row"><span class="label">Variance</span><span class="value ' + vc + '">' + (variance > 0 ? '+' : '') + variance.toFixed(0) + 'h</span></div>' : '') +
-      '<div class="tally-row"><span class="label">Est cost @ $' + rate + '/hr</span><span class="value">$' + (estHrs * rate).toFixed(0) + '</span></div>' +
+      '<div class="tally-row"><span class="label">Est crew-hrs today</span><span class="value">' + estHrs.toFixed(0) + 'h</span></div>' +
+      '<div class="tally-row"><span class="label">Est cost today @ $' + rate + '/hr</span><span class="value">$' + estCost.toFixed(0) + '</span></div>' +
       '<div class="tally-row"><span class="label">Resources</span><span class="value" style="font-size:11px">' + plantStr + '</span></div>' +
     '</div>';
   });
@@ -758,18 +769,18 @@ function renderTally() {
       var avg = dl.reduce(function(sum, e) { return sum + e.crew; }, 0) / dl.length;
       totalHrs += avg * dayLen;
     });
-    var quotedPerDay = setup['quote_' + s.id] || 0;
-    var quotedTotal = quotedPerDay * days.length;
-    var variance = quotedTotal ? totalHrs - quotedTotal : 0;
-    var vc = variance > 0 ? 'over' : variance < 0 ? 'under' : '';
+    var estCost = totalHrs * rate;
+    var budget = setup['quote_' + s.id] || 0;
+    var remaining = budget ? budget - estCost : 0;
+    var rc = remaining < 0 ? 'over' : remaining > 0 ? 'under' : '';
 
     cumHTML += '<div class="tally-card">' +
       '<h3>' + s.name + '</h3>' +
       '<div class="tally-row"><span class="label">Days tracked</span><span class="value">' + days.length + '</span></div>' +
       '<div class="tally-row"><span class="label">Total crew-hrs</span><span class="value">' + totalHrs.toFixed(0) + 'h</span></div>' +
-      (quotedTotal ? '<div class="tally-row"><span class="label">Quoted total</span><span class="value">' + quotedTotal + 'h</span></div>' +
-      '<div class="tally-row"><span class="label">Variance</span><span class="value ' + vc + '">' + (variance > 0 ? '+' : '') + variance.toFixed(0) + 'h</span></div>' : '') +
-      '<div class="tally-row"><span class="label">Est total cost</span><span class="value">$' + (totalHrs * rate).toFixed(0) + '</span></div>' +
+      '<div class="tally-row"><span class="label">Est spend @ $' + rate + '/hr</span><span class="value">$' + estCost.toFixed(0) + '</span></div>' +
+      (budget ? '<div class="tally-row"><span class="label">Budget</span><span class="value">$' + budget + '</span></div>' +
+      '<div class="tally-row"><span class="label">Remaining</span><span class="value ' + rc + '">' + (remaining < 0 ? '-$' + Math.abs(remaining).toFixed(0) : '$' + remaining.toFixed(0)) + '</span></div>' : '') +
     '</div>';
   });
   cDiv.innerHTML = cumHTML || '<div class="log-empty">No data yet</div>';
@@ -789,10 +800,18 @@ function renderSetup() {
     '</div>';
   }).join('');
 
+  var stages = getStages();
+  document.getElementById('stageSettings').innerHTML = stages.map(function(s) {
+    return '<div class="setting-row">' +
+      '<input type="text" value="' + s.name + '" class="wide" onchange="renameStage(\'' + s.id + '\', this.value)">' +
+      '<span onclick="removeStage(\'' + s.id + '\')" style="margin-left:8px;color:var(--red);font-size:18px;cursor:pointer;padding:4px 8px">x</span>' +
+    '</div>';
+  }).join('');
+
   document.getElementById('quoteSettings').innerHTML = suppliers.map(function(s) {
     return '<div class="setting-row">' +
       '<label>' + s.name + '</label>' +
-      '<input type="number" id="quote_' + s.id + '" value="' + (setup['quote_' + s.id] || '') + '" placeholder="hrs" onchange="saveSetup()">' +
+      '<input type="number" id="quote_' + s.id + '" value="' + (setup['quote_' + s.id] || '') + '" placeholder="$" onchange="saveSetup()">' +
     '</div>';
   }).join('');
 
@@ -832,6 +851,42 @@ function removeSupplier(id) {
   setup.suppliers = suppliers;
   store.saveSetup(setup);
   renderSupplierBtns();
+  renderSetup();
+  toast('Removed');
+}
+
+function renameStage(id, name) {
+  var setup = store.setup();
+  var stages = getStages();
+  var s = stages.find(function(x) { return x.id === id; });
+  if (s) s.name = name;
+  setup.stages = stages;
+  store.saveSetup(setup);
+  renderStageBtns();
+  toast('Saved');
+}
+
+function addStage() {
+  var name = prompt('Area / stage name:');
+  if (!name || !name.trim()) return;
+  var setup = store.setup();
+  var stages = getStages();
+  var id = 'st' + Date.now();
+  stages.push({ id: id, name: name.trim() });
+  setup.stages = stages;
+  store.saveSetup(setup);
+  renderStageBtns();
+  renderSetup();
+  toast('Added ' + name.trim());
+}
+
+function removeStage(id) {
+  if (!confirm('Remove this area?')) return;
+  var setup = store.setup();
+  var stages = getStages().filter(function(s) { return s.id !== id; });
+  setup.stages = stages;
+  store.saveSetup(setup);
+  renderStageBtns();
   renderSetup();
   toast('Removed');
 }
