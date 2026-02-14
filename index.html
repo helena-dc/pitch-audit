@@ -185,6 +185,7 @@ body {
 
   <div class="section-label" style="margin-top:16px">Suppliers</div>
   <div id="supplierSettings"></div>
+  <div class="export-btn" onclick="addSupplier()" style="margin-top:6px">+ Add Supplier</div>
 
   <div class="section-label" style="margin-top:16px">Quoted crew-hours per supplier per day</div>
   <div id="quoteSettings"></div>
@@ -250,7 +251,7 @@ var STAGES = [
   { id: 'ra', name: 'RA Stage' },
   { id: 'p1', name: 'Pitch One' },
   { id: 'pb', name: 'Pitch Black' },
-  { id: 'cs', name: 'Club Serra' },
+  { id: 'cs', name: 'Pavilion' },
   { id: 'foh', name: 'FOH/Misc' },
   { id: 'oth', name: 'Other' }
 ];
@@ -784,6 +785,7 @@ function renderSetup() {
   document.getElementById('supplierSettings').innerHTML = suppliers.map(function(s) {
     return '<div class="setting-row">' +
       '<input type="text" value="' + s.name + '" class="wide" onchange="renameSupplier(\'' + s.id + '\', this.value)">' +
+      '<span onclick="removeSupplier(\'' + s.id + '\')" style="margin-left:8px;color:var(--red);font-size:18px;cursor:pointer;padding:4px 8px">x</span>' +
     '</div>';
   }).join('');
 
@@ -807,6 +809,31 @@ function renameSupplier(id, name) {
   store.saveSetup(setup);
   renderSupplierBtns();
   toast('Saved');
+}
+
+function addSupplier() {
+  var name = prompt('Supplier name:');
+  if (!name || !name.trim()) return;
+  var setup = store.setup();
+  var suppliers = getSuppliers();
+  var id = 's' + Date.now();
+  suppliers.push({ id: id, name: name.trim() });
+  setup.suppliers = suppliers;
+  store.saveSetup(setup);
+  renderSupplierBtns();
+  renderSetup();
+  toast('Added ' + name.trim());
+}
+
+function removeSupplier(id) {
+  if (!confirm('Remove this supplier?')) return;
+  var setup = store.setup();
+  var suppliers = getSuppliers().filter(function(s) { return s.id !== id; });
+  setup.suppliers = suppliers;
+  store.saveSetup(setup);
+  renderSupplierBtns();
+  renderSetup();
+  toast('Removed');
 }
 
 function saveSetup() {
