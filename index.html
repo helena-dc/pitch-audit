@@ -1004,6 +1004,7 @@ function toast(msg) {
 }
 
 init();
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/pitch-audit/sw.js').catch(function(){}); }
 </script>
 </body>
 </html>
